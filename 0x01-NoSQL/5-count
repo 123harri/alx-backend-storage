@@ -1,0 +1,3 @@
+// my comment
+// Displays the number of documents in the 'school' collection.
+print(db.school.count());
