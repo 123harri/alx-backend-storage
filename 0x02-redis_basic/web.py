@@ -1,47 +1,30 @@
 #!/usr/bin/env python3
-"""
-A module with tools for request caching and tracking using Redis.
-"""
+'''A module with tools for request caching and tracking.
+'''
 import redis
 import requests
 from functools import wraps
 from typing import Callable
 
-# Initialize a module-level Redis instance
+
 redis_store = redis.Redis()
+'''The module-level Redis instance.
+'''
+
 
 def data_cacher(method: Callable) -> Callable:
-    """
-    Decorator that caches the output of fetched
-    data and tracks the number of requests.
-
-    Args:
-        method (Callable): The function to be decorated.
-
-    Returns:
-        Callable: The wrapped function with caching and tracking functionality.
-    """
+    '''Caches the output of fetched data.
+    '''
     @wraps(method)
-    def invoker(url: str) -> str:
-        """
-        Wrapper function for caching fetched data and tracking requests.
-
-        Args:
-            url (str): The URL to fetch data from.
-
-        Returns:
-            str: The content fetched from the URL.
-        """
-        # Increment the request count for the URL
+    def invoker(url) -> str:
+        '''The wrapper function for caching the output.
+        '''
         redis_store.incr(f'count:{url}')
-        
-        # Check if the result is already cached
         result = redis_store.get(f'result:{url}')
         if result:
             return result.decode('utf-8')
-        
-        # Fetch the data and cache the result
         result = method(url)
+        redis_store.set(f'count:{url}', 0)
         redis_store.setex(f'result:{url}', 10, result)
         return result
     return invoker
@@ -49,20 +32,7 @@ def data_cacher(method: Callable) -> Callable:
 
 @data_cacher
 def get_page(url: str) -> str:
-    """
-    Fetches the content of a URL, caches the
-    response, and tracks the request count.
-
-    Args:
-        url (str): The URL to fetch data from.
-
-    Returns:
-        str: The content fetched from the URL.
-    """
+    '''Returns the content of a URL after caching the request's response,
+    and tracking the request.
+    '''
     return requests.get(url).text
-
-
-if __name__ == "__main__":
-    url = "http://slowwly.robertomurray.co.uk"
-    print(get_page(url))
-    print(get_page(url))
