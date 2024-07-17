@@ -1,45 +1,68 @@
 #!/usr/bin/env python3
 """
-A simple caching mechanism for web requests using Redis.
+A module with tools for request caching and tracking using Redis.
 """
-
 import redis
 import requests
-from typing import Callable
 from functools import wraps
+from typing import Callable
 
-# Initialize a Redis client
+# Initialize a module-level Redis instance
 redis_store = redis.Redis()
 
+def data_cacher(method: Callable) -> Callable:
+    """
+    Decorator that caches the output of fetched
+    data and tracks the number of requests.
 
-def count_requests(method: Callable) -> Callable:
-    """Decorator that counts requests and caches their responses."""
+    Args:
+        method (Callable): The function to be decorated.
 
+    Returns:
+        Callable: The wrapped function with caching and tracking functionality.
+    """
     @wraps(method)
-    def wrapper(url):
-        """Wrapper function to handle request counting and caching."""
+    def invoker(url: str) -> str:
+        """
+        Wrapper function for caching fetched data and tracking requests.
 
+        Args:
+            url (str): The URL to fetch data from.
+
+        Returns:
+            str: The content fetched from the URL.
+        """
         # Increment the request count for the URL
-        rd.incr(f"count:{url}")
-
+        redis_store.incr(f'count:{url}')
+        
         # Check if the result is already cached
-        cached_html = rd.get(f"cached:{url}")
-        if cached_html:
-            return cached_html.decode('utf-8')
-
-        # Fetch the HTML content from the URL
-        html = method(url)
-
-        # Cache the fetched HTML content with a 10-second expiration
-        rd.setex(f"cached:{url}", 10, html)
-
-        return html
-
-    return wrapper
+        result = redis_store.get(f'result:{url}')
+        if result:
+            return result.decode('utf-8')
+        
+        # Fetch the data and cache the result
+        result = method(url)
+        redis_store.setex(f'result:{url}', 10, result)
+        return result
+    return invoker
 
 
-@count_requests
+@data_cacher
 def get_page(url: str) -> str:
-    """Fetches the HTML content from a given URL."""
-    req = requests.get(url)
-    return req.text
+    """
+    Fetches the content of a URL, caches the
+    response, and tracks the request count.
+
+    Args:
+        url (str): The URL to fetch data from.
+
+    Returns:
+        str: The content fetched from the URL.
+    """
+    return requests.get(url).text
+
+
+if __name__ == "__main__":
+    url = "http://slowwly.robertomurray.co.uk"
+    print(get_page(url))
+    print(get_page(url))
